@@ -13,14 +13,14 @@ pub async fn init_db() -> PgPool {
 
     println!("Connected to PostgreSQL successfully!");
 
-    // 1. Create extension
+    //  Create extension
     sqlx::query(r#"CREATE EXTENSION IF NOT EXISTS "uuid-ossp";"#)
         .execute(&pool)
         .await
         .expect("Failed to create uuid-ossp extension");
 
-    // 2. Create users table
-    sqlx::query(
+    //  Create users table
+  sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS users (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -30,6 +30,9 @@ pub async fn init_db() -> PgPool {
             last_name VARCHAR(100) NOT NULL DEFAULT '',
             phone_number VARCHAR(20),
             city VARCHAR(100),
+            is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+            otp_code VARCHAR(6),
+            otp_expires_at TIMESTAMP WITH TIME ZONE,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
         "#
@@ -37,8 +40,8 @@ pub async fn init_db() -> PgPool {
     .execute(&pool)
     .await
     .expect("Failed to create users table");
-
-    // 3. Create listings table
+   
+    // Create listings table
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS listings (
