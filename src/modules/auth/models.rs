@@ -19,7 +19,7 @@ impl<T: Serialize> ApiResponse<T> {
         (
             StatusCode::OK,
             Json(Self {
-                status_code: 200,
+                status_code: 1,
                 message: message.into(),
                 data: Some(data),
             }),
@@ -30,7 +30,7 @@ impl<T: Serialize> ApiResponse<T> {
         (
             StatusCode::OK,
             Json(ApiResponse {
-                status_code: 200,
+                status_code: 1,
                 message: message.into(),
                 data: None,
             }),
@@ -39,11 +39,11 @@ impl<T: Serialize> ApiResponse<T> {
 }
 
 pub enum AppErrorCode {
-    Failure,        // 0
-    RefreshToken,   // 401
-    SessionExpired, // 403
-    NotFound,       // 404
-    InternalError,  // 500
+    Failure,        // 0   -> Validation, wrong OTP/password, already verified
+    RefreshToken,   // 401 -> Access token expired/invalid (call /refresh-token)
+    SessionExpired, // 403 -> Refresh token expired/invalid (force re-login)
+    NotFound,       // 404 -> User or endpoint not found
+    InternalError,  // 500 -> DB / server crash
 }
 
 pub struct ApiError {
@@ -53,38 +53,19 @@ pub struct ApiError {
 
 impl ApiError {
     pub fn failure(message: impl Into<String>) -> Self {
-        Self {
-            code: AppErrorCode::Failure,
-            message: message.into(),
-        }
+        Self { code: AppErrorCode::Failure, message: message.into() }
     }
-
     pub fn refresh_token(message: impl Into<String>) -> Self {
-        Self {
-            code: AppErrorCode::RefreshToken,
-            message: message.into(),
-        }
+        Self { code: AppErrorCode::RefreshToken, message: message.into() }
     }
-
     pub fn session_expired(message: impl Into<String>) -> Self {
-        Self {
-            code: AppErrorCode::SessionExpired,
-            message: message.into(),
-        }
+        Self { code: AppErrorCode::SessionExpired, message: message.into() }
     }
-
     pub fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: AppErrorCode::NotFound,
-            message: message.into(),
-        }
+        Self { code: AppErrorCode::NotFound, message: message.into() }
     }
-
     pub fn internal(message: impl Into<String>) -> Self {
-        Self {
-            code: AppErrorCode::InternalError,
-            message: message.into(),
-        }
+        Self { code: AppErrorCode::InternalError, message: message.into() }
     }
 }
 
@@ -107,6 +88,8 @@ impl IntoResponse for ApiError {
         (http_status, body).into_response()
     }
 }
+
+// --- Request DTOs ---
 
 #[derive(Deserialize, Validate)]
 pub struct RegisterRequest {
@@ -140,6 +123,34 @@ pub struct ResendOtpRequest {
     pub email: String,
 }
 
+#[derive(Deserialize)]
+pub struct RefreshTokenRequest {
+    pub refresh_token: String,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct ForgotPasswordRequest {
+    #[validate(email)]
+    pub email: String,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct ResetPasswordRequest {
+    #[validate(email)]
+    pub email: String,
+    #[validate(length(equal = 6))]
+    pub otp_code: String,
+    #[validate(length(min = 8))]
+    pub new_password: String,
+}
+
+#[derive(Deserialize, Validate)]
+pub struct ChangePasswordRequest {
+    pub old_password: String,
+    #[validate(length(min = 8))]
+    pub new_password: String,
+}
+
 #[derive(Deserialize, Validate)]
 pub struct UpdateProfileRequest {
     pub first_name: Option<String>,
@@ -148,6 +159,8 @@ pub struct UpdateProfileRequest {
     pub city: Option<String>,
     pub profile_image: Option<String>,
 }
+
+// --- Response DTOs ---
 
 #[derive(Serialize, Clone)]
 pub struct UserProfile {
@@ -164,6 +177,13 @@ pub struct UserProfile {
 #[derive(Serialize)]
 pub struct AuthData {
     pub token: Option<String>,
+    pub refresh_token: Option<String>,
     pub is_verified: bool,
     pub user: UserProfile,
+}
+
+#[derive(Serialize)]
+pub struct TokenPair {
+    pub token: String,
+    pub refresh_token: String,
 }
